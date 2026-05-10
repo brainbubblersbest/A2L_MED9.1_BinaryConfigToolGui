@@ -1,0 +1,63 @@
+name: Build Windows Installer
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:   # Manueller Start per Knopfdruck auf GitHub möglich
+
+jobs:
+  build:
+    runs-on: windows-latest   # Echter Windows Server bei GitHub
+
+    steps:
+      # ── 1. Code auschecken ──────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Python einrichten ────────────────────────────────────────────────
+      - name: Python 3.12 einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ── 3. Dependencies installieren ────────────────────────────────────────
+      - name: Dependencies installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install PyQt6 pyinstaller
+
+      # ── 4. EXE bauen ────────────────────────────────────────────────────────
+      - name: EXE mit PyInstaller bauen
+        run: |
+          pyinstaller `
+            --onefile `
+            --windowed `
+            --name "MED91_Konfigurator" `
+            --version-file version_info.txt `
+            --hidden-import PyQt6.QtCore `
+            --hidden-import PyQt6.QtGui `
+            --hidden-import PyQt6.QtWidgets `
+            --hidden-import PyQt6.sip `
+            --exclude-module matplotlib `
+            --exclude-module numpy `
+            --exclude-module tkinter `
+            --exclude-module unittest `
+            main.py
+
+      # ── 5. Inno Setup installieren + Installer bauen ────────────────────────
+      - name: Inno Setup installieren
+        run: choco install innosetup --yes --no-progress
+
+      - name: Windows Installer bauen
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      # ── 6. EXE + Installer als Artefakte hochladen ──────────────────────────
+      - name: Artefakte hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: MED91_Konfigurator_Windows
+          path: |
+            installer_output\MED91_Konfigurator_Setup_v1.0.0.exe
+            dist\MED91_Konfigurator.exe
+          retention-days: 30   # 30 Tage abrufbar
